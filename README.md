@@ -22,3 +22,5 @@ The cleanup script is used when submitting to the App Store, it removes the simu
 ### Objective-C 
 
 Make sure all .h classes are made 'public' and not set to project.
+
+Also be sure to import all .h classes in the file ```<FRAMEWORKNAME>.h```
