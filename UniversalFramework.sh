@@ -1,48 +1,30 @@
-# Merge Script
+#!/bin/sh
 
-# 1
-# Set bash script to exit immediately if any commands fail.
-set -e
+if [ "true" == ${ALREADYINVOKED:-false} ]
+then
+echo "RECURSION: Detected, stopping"
+else
+export ALREADYINVOKED="true"
 
-# 2
-# Setup some constants for use later on.
-FRAMEWORK_NAME="SampleFramework"
+UNIVERSAL_OUTPUTFOLDER=${BUILD_DIR}/${CONFIGURATION}-iosuniversal
 
-# 3
-# If remnants from a previous build exist, delete them.
-if [ -d "${SRCROOT}/build" ]; then
-rm -rf "${SRCROOT}/build"
+# make sure the output directory exists
+mkdir -p "${UNIVERSAL_OUTPUTFOLDER}"
+
+# Step 1. Build Device and Simulator versions
+xcodebuild -target "${TARGET_NAME}" ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphoneos  BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}" clean build
+xcodebuild -target "${TARGET_NAME}" -configuration ${CONFIGURATION} -sdk iphonesimulator ONLY_ACTIVE_ARCH=NO BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}" clean build
+
+# Step 2. Copy the framework structure (from iphoneos build) to the universal folder
+cp -R "${BUILD_DIR}/${CONFIGURATION}-iphoneos/${PROJECT_NAME}.framework" "${UNIVERSAL_OUTPUTFOLDER}/"
+
+# Step 3. Copy Swift modules from iphonesimulator build (if it exists) to the copied framework directory
+SIMULATOR_SWIFT_MODULES_DIR="${BUILD_DIR}/${CONFIGURATION}-iphonesimulator/${PROJECT_NAME}.framework/Modules/${PROJECT_NAME}.swiftmodule/."
+if [ -d "${SIMULATOR_SWIFT_MODULES_DIR}" ]; then
+cp -R "${SIMULATOR_SWIFT_MODULES_DIR}" "${UNIVERSAL_OUTPUTFOLDER}/${PROJECT_NAME}.framework/Modules/${PROJECT_NAME}.swiftmodule"
 fi
 
-# 4
-# Build the framework for device and for simulator (using
-# all needed architectures).
-xcodebuild -target "${FRAMEWORK_NAME}" -configuration Release -arch arm64 -arch armv7 -arch armv7s only_active_arch=no defines_module=yes -sdk "iphoneos"
-xcodebuild -target "${FRAMEWORK_NAME}" -configuration Release -arch x86_64 -arch i386 only_active_arch=no defines_module=yes -sdk "iphonesimulator"
+# Step 4. Create universal binary file using lipo and place the combined executable in the copied framework directory
+lipo -create -output "${UNIVERSAL_OUTPUTFOLDER}/${PROJECT_NAME}.framework/${PROJECT_NAME}" "${BUILD_DIR}/${CONFIGURATION}-iphonesimulator/${PROJECT_NAME}.framework/${PROJECT_NAME}" "${BUILD_DIR}/${CONFIGURATION}-iphoneos/${PROJECT_NAME}.framework/${PROJECT_NAME}"
 
-# 5
-# Remove .framework file if exists on Desktop from previous run.
-if [ -d "${HOME}/Desktop/${FRAMEWORK_NAME}.framework" ]; then
-rm -rf "${HOME}/Desktop/${FRAMEWORK_NAME}.framework"
-fi
-
-# 6
-# Copy the device version of framework to Desktop.
-cp -r "${SRCROOT}/build/Release-iphoneos/${FRAMEWORK_NAME}.framework" "${HOME}/Desktop/${FRAMEWORK_NAME}.framework"
-
-# 7
-# Replace the framework executable within the framework with
-# a new version created by merging the device and simulator
-# frameworks' executables with lipo.
-lipo -create -output "${HOME}/Desktop/${FRAMEWORK_NAME}.framework/${FRAMEWORK_NAME}" "${SRCROOT}/build/Release-iphoneos/${FRAMEWORK_NAME}.framework/${FRAMEWORK_NAME}" "${SRCROOT}/build/Release-iphonesimulator/${FRAMEWORK_NAME}.framework/${FRAMEWORK_NAME}"
-
-# 8
-# Copy the Swift module mappings for the simulator into the
-# framework.  The device mappings already exist from step 6.
-cp -r "${SRCROOT}/build/Release-iphonesimulator/${FRAMEWORK_NAME}.framework/Modules/${FRAMEWORK_NAME}.swiftmodule/" "${HOME}/Desktop/${FRAMEWORK_NAME}.framework/Modules/${FRAMEWORK_NAME}.swiftmodule"
-
-# 9
-# Delete the most recent build.
-if [ -d "${SRCROOT}/build" ]; then
-rm -rf "${SRCROOT}/build"
 fi
