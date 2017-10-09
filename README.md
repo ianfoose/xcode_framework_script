@@ -9,11 +9,11 @@ Script for Xcode run phases to create a universal framework or cleanup a univers
 
 ### Merge Script Setup
 
-Be sure to rename the 'Framework Name' to the name of your framework target
+Either copy and paste script into a run phase or  
 
-```bash
-FRAMEWORK_NAME="SampleFramework"
-```
+make script executable and add path in run phase.  
+
+Example: ```${SRCROOT}/script.sh```
 
 ### Cleanup Script
 
